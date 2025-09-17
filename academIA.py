@@ -18,11 +18,9 @@ def printReturn(nome, angulo, minimo, maximo):
 
 
 # Escolha o exercício a monitorar
-# Opções: "supino", "agachamento", "terra", "leg45", "leg90", "puxada_alta", "abdutora", "adutora", "hack",
+# Opções: "supino", "agachamento", "terra", "leg45", "leg90", "extensora", "flexora", "puxada_alta", "abdutora", "adutora", "hack",
 # "remada_maquina", "remada_baixa", "remada_alta"
-exercicio_atual = "leg45"
-
-# Carrega o modelo de pose
+exercicio_atual = "extensora" # Carrega o modelo de pose
 model = YOLO("yolo11n-pose.pt")
 
 # COCO keypoints IDs
@@ -104,6 +102,13 @@ for fps in results:
             print(printReturn("Cotovelo Esq", ang_cotovelo_esq, 80, 100))
             print(printReturn("Cotovelo Dir", ang_cotovelo_dir, 80, 100))
 
+        elif exercicio_atual == "puxada_baixa":
+            print("\n=== PUXADA BAIXA ===")
+            print(printReturn("Ombro Esq", ang_quadril_esq, 0, 30))
+            print(printReturn("Ombro Dir", ang_quadril_dir, 0, 30))
+            print(printReturn("Cotovelo Esq", ang_cotovelo_esq, 60, 100))
+            print(printReturn("Cotovelo Dir", ang_cotovelo_dir, 60, 100))
+
         elif exercicio_atual == "abdutora":
             print("\n=== ABDUTORA ===")
             print(printReturn("Quadril Esq (Abdução)", ang_quadril_esq, 0, 40))
@@ -142,6 +147,3 @@ for fps in results:
             print(printReturn("Cotovelo Dir", ang_cotovelo_dir, 60, 100))
             print(printReturn("Ombro Esq", ang_ombro_esq, 45, 60))
             print(printReturn("Ombro Dir", ang_ombro_dir, 45, 60))
-
-
-
