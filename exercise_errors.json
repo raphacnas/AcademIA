@@ -1,0 +1,78 @@
+{
+  "errors": {
+    "puxada_alta": {
+      "cotovelo_esq": 101,
+      "ombro_esq": 101,
+      "ombro_dir": 101,
+      "cotovelo_dir": 101,
+      "simetria_braços": 97,
+      "trajetoria_punho_esq": 99,
+      "trajetoria_punho_dir": 99,
+      "stacking_esq": 81,
+      "stacking_dir": 75,
+      "sticking_point": 43,
+      "rep_muito_lenta": 53,
+      "rep_muito_rapida": 2
+    },
+    "supino": {
+      "cotovelo_esq": 189,
+      "cotovelo_dir": 189,
+      "simetria_braços": 168,
+      "trajetoria_punho_esq": 187,
+      "trajetoria_punho_dir": 187,
+      "stacking_esq": 140,
+      "stacking_dir": 144,
+      "sticking_point": 116,
+      "rep_muito_lenta": 121,
+      "sequencia_errada": 4
+    },
+    "remada_alta": {
+      "cotovelo_esq": 84,
+      "cotovelo_dir": 86,
+      "ombro_dir": 86,
+      "ombro_esq": 86,
+      "trajetoria_punho_esq": 84,
+      "trajetoria_punho_dir": 84,
+      "stacking_esq": 60,
+      "stacking_dir": 62,
+      "sticking_point": 44,
+      "simetria_braços": 76,
+      "rep_muito_lenta": 26
+    },
+    "remada_maquina": {
+      "ombro_dir": 4,
+      "cotovelo_dir": 4,
+      "cotovelo_esq": 4,
+      "ombro_esq": 4,
+      "simetria_braços": 4,
+      "trajetoria_punho_esq": 4,
+      "trajetoria_punho_dir": 4,
+      "stacking_esq": 4,
+      "stacking_dir": 4,
+      "sticking_point": 2,
+      "rep_muito_lenta": 2
+    },
+    "remada_baixa": {
+      "ombro_dir": 86,
+      "cotovelo_dir": 122,
+      "cotovelo_esq": 122,
+      "ombro_esq": 94,
+      "simetria_braços": 120,
+      "trajetoria_punho_esq": 122,
+      "trajetoria_punho_dir": 120,
+      "stacking_esq": 112,
+      "stacking_dir": 102,
+      "sticking_point": 58,
+      "rep_muito_rapida": 4,
+      "rep_muito_lenta": 52
+    }
+  },
+  "total": {
+    "puxada_alta": 101,
+    "supino": 189,
+    "remada_alta": 86,
+    "remada_maquina": 4,
+    "remada_baixa": 122
+  },
+  "last": "2025-12-10T22:46:33.334289"
+}
