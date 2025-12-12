@@ -21,7 +21,7 @@ class ModelThread(QThread):
         while self.running:
             frame = self.cam_thread.get_latest()
             if frame is not None:
-                frame = cv2.flip(frame, 0)
+                # frame = cv2.flip(frame, 0)
                 try:
                     results = model.predict(frame, verbose=False, device="cpu")
                 except Exception as e:

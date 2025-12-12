@@ -1,43 +1,46 @@
 {
   "errors": {
     "puxada_alta": {
-      "cotovelo_esq": 101,
-      "ombro_esq": 101,
-      "ombro_dir": 101,
-      "cotovelo_dir": 101,
-      "simetria_braços": 97,
-      "trajetoria_punho_esq": 99,
-      "trajetoria_punho_dir": 99,
-      "stacking_esq": 81,
-      "stacking_dir": 75,
-      "sticking_point": 43,
-      "rep_muito_lenta": 53,
-      "rep_muito_rapida": 2
+      "cotovelo_esq": 161,
+      "ombro_esq": 161,
+      "ombro_dir": 161,
+      "cotovelo_dir": 161,
+      "simetria_braços": 145,
+      "trajetoria_punho_esq": 159,
+      "trajetoria_punho_dir": 159,
+      "stacking_esq": 127,
+      "stacking_dir": 121,
+      "sticking_point": 65,
+      "rep_muito_lenta": 101,
+      "rep_muito_rapida": 4
     },
     "supino": {
-      "cotovelo_esq": 189,
-      "cotovelo_dir": 189,
-      "simetria_braços": 168,
-      "trajetoria_punho_esq": 187,
-      "trajetoria_punho_dir": 187,
-      "stacking_esq": 140,
-      "stacking_dir": 144,
-      "sticking_point": 116,
-      "rep_muito_lenta": 121,
-      "sequencia_errada": 4
+      "cotovelo_esq": 455,
+      "cotovelo_dir": 455,
+      "simetria_braços": 434,
+      "trajetoria_punho_esq": 453,
+      "trajetoria_punho_dir": 451,
+      "stacking_esq": 382,
+      "stacking_dir": 382,
+      "sticking_point": 264,
+      "rep_muito_lenta": 267,
+      "sequencia_errada": 18,
+      "ombro_esq": 84,
+      "ombro_dir": 84,
+      "rep_muito_rapida": 2
     },
     "remada_alta": {
-      "cotovelo_esq": 84,
-      "cotovelo_dir": 86,
-      "ombro_dir": 86,
-      "ombro_esq": 86,
-      "trajetoria_punho_esq": 84,
-      "trajetoria_punho_dir": 84,
-      "stacking_esq": 60,
-      "stacking_dir": 62,
-      "sticking_point": 44,
-      "simetria_braços": 76,
-      "rep_muito_lenta": 26
+      "cotovelo_esq": 124,
+      "cotovelo_dir": 126,
+      "ombro_dir": 126,
+      "ombro_esq": 126,
+      "trajetoria_punho_esq": 124,
+      "trajetoria_punho_dir": 124,
+      "stacking_esq": 98,
+      "stacking_dir": 100,
+      "sticking_point": 60,
+      "simetria_braços": 112,
+      "rep_muito_lenta": 36
     },
     "remada_maquina": {
       "ombro_dir": 4,
@@ -68,11 +71,11 @@
     }
   },
   "total": {
-    "puxada_alta": 101,
-    "supino": 189,
-    "remada_alta": 86,
+    "puxada_alta": 161,
+    "supino": 455,
+    "remada_alta": 126,
     "remada_maquina": 4,
     "remada_baixa": 122
   },
-  "last": "2025-12-10T22:46:33.334289"
+  "last": "2025-12-12T07:40:23.340455"
 }

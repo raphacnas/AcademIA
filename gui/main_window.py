@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QLabel, QComboBox, QTextEdit,
     QHBoxLayout, QVBoxLayout, QPushButton, QTableWidget, QMessageBox,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCharts import QChart, QChartView, QBarSeries, QBarCategoryAxis, QValueAxis
 
@@ -25,6 +25,14 @@ from gui.dashboard import update_dashboard, reset_data_action
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        self.led_red_timer = QTimer()
+        self.led_red_timer.setInterval(150)  # 150 ms
+        self.led_red_timer.timeout.connect(self._led_red_tick)
+        self.led_red_on = False
+
+
+
         self.setWindowTitle("AcademIA")
         self.resize(1200, 800)
 
@@ -38,6 +46,11 @@ class MainWindow(QMainWindow):
         self.tracker = ErrorTracker()
         self.machines = {}
         self.led = LedDriver("COM5")  # mesmo nome da porta do teste
+
+
+    def _led_red_tick(self):
+        self.led_red_on = not self.led_red_on
+        self.led.red() if self.led_red_on else self.led.off()
 
     # --------------------------------------------------
     # UI
@@ -113,18 +126,22 @@ class MainWindow(QMainWindow):
         frame_time = time.time()
         machine = self._get_machine(ex)
 
+        if frame is None or frame.size == 0:
+            print("[PROCESS] frame vazio – retornando")
+            return
+
         # ---------- ângulo 100 % protegido ----------
-        def safe_angle(a, b, c, name):
+        def safe_angle(a, b, c, _name):
             if a is None or b is None or c is None:
                 return 0.0
             ba, bc = a - b, c - b
             norm = np.linalg.norm(ba) * np.linalg.norm(bc)
-            if abs(norm) < 1e-6:          # divisão por zero
+            if abs(norm) < 1e-6:
                 return 0.0
             cos = np.dot(ba, bc) / norm
             return float(np.degrees(np.arccos(np.clip(cos, -1, 1))))
 
-        # ---------- desenho blindado ----------
+        # ---------- desenho ----------
         def safe_draw(img, results):
             bones = [(5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (11, 12),
                      (11, 13), (13, 15), (12, 14), (14, 16), (5, 11), (6, 12)]
@@ -142,504 +159,148 @@ class MainWindow(QMainWindow):
                         pt2 = (int(k[j][0]), int(k[j][1]))
                         cv2.line(img, pt1, pt2, (0, 255, 0), 2)
 
-        # ---------- processa ----------
+        # ---------- tabela de faixas dinâmicas ----------
+        DYN_RANGE = {
+            "supino": {
+                "deep": {"cotovelo_esq": (45, 60), "cotovelo_dir": (45, 60)},
+                "peak": {"cotovelo_esq": (100, 110), "cotovelo_dir": (100, 110)},
+            },
+            "agachamento": {
+                "deep": {"joelho_esq": (90, 120), "joelho_dir": (90, 120)},
+                "peak": {"joelho_esq": (170, 180), "joelho_dir": (170, 180)},
+            },
+            "terra": {
+                "deep": {"quadril_esq": (100, 120), "quadril_dir": (100, 120)},
+                "peak": {"quadril_esq": (160, 180), "quadril_dir": (160, 180)},
+            },
+            "leg45": {
+                "deep": {"joelho_esq": (90, 120), "joelho_dir": (90, 120),
+                         "quadril_esq": (60, 80), "quadril_dir": (60, 80)},
+                "peak": {"joelho_esq": (170, 180), "joelho_dir": (170, 180),
+                         "quadril_esq": (160, 180), "quadril_dir": (160, 180)},
+            },
+            "leg90": {
+                "deep": {"joelho_esq": (90, 120), "joelho_dir": (90, 120),
+                         "quadril_esq": (60, 100), "quadril_dir": (60, 100)},
+                "peak": {"joelho_esq": (170, 180), "joelho_dir": (170, 180),
+                         "quadril_esq": (160, 180), "quadril_dir": (160, 180)},
+            },
+            "puxada_alta": {
+                "deep": {"ombro_esq": (60, 90), "ombro_dir": (60, 90),
+                         "cotovelo_esq": (80, 100), "cotovelo_dir": (80, 100)},
+                "peak": {"ombro_esq": (30, 60), "ombro_dir": (30, 60),
+                         "cotovelo_esq": (100, 120), "cotovelo_dir": (100, 120)},
+            },
+            "cadeira_romana": {
+                "deep": {"quadril_esq": (120, 140), "quadril_dir": (120, 140)},
+                "peak": {"quadril_esq": (160, 180), "quadril_dir": (160, 180)},
+            },
+            "hack": {
+                "deep": {"joelho_esq": (90, 120), "joelho_dir": (90, 120),
+                         "quadril_esq": (60, 100), "quadril_dir": (60, 100)},
+                "peak": {"joelho_esq": (170, 180), "joelho_dir": (170, 180),
+                         "quadril_esq": (160, 180), "quadril_dir": (160, 180)},
+            },
+            "remada_alta": {
+                "deep": {"ombro_esq": (60, 90), "ombro_dir": (60, 90),
+                         "cotovelo_esq": (80, 100), "cotovelo_dir": (80, 100)},
+                "peak": {"ombro_esq": (30, 60), "ombro_dir": (30, 60),
+                         "cotovelo_esq": (100, 120), "cotovelo_dir": (100, 120)},
+            },
+            "remada_baixa": {
+                "deep": {"cotovelo_esq": (60, 80), "cotovelo_dir": (60, 80)},
+                "peak": {"cotovelo_esq": (100, 120), "cotovelo_dir": (100, 120)},
+            },
+            "remada_maquina": {
+                "deep": {"cotovelo_esq": (60, 80), "cotovelo_dir": (60, 80)},
+                "peak": {"cotovelo_esq": (100, 120), "cotovelo_dir": (100, 120)},
+            },
+            "desenvolvimento de ombro": {
+                "deep": {"ombro_esq": (0, 30), "ombro_dir": (0, 30),
+                         "cotovelo_esq": (60, 90), "cotovelo_dir": (60, 90)},
+                "peak": {"ombro_esq": (140, 160), "ombro_dir": (140, 160),
+                         "cotovelo_esq": (160, 180), "cotovelo_dir": (160, 180)},
+            },
+        }
+
         out_lines = []
         for r in results:
             kp = r.keypoints.xy
-            if len(kp) == 0 or len(kp[0]) < 17:   # <── evita acesso inválido
+            if len(kp) == 0 or len(kp[0]) < 17:
                 continue
             p0 = kp[0]
 
-            c = {}
-            for name, idx in KEYPOINT_MAP.items():
-                c[name] = np.array(p0[idx]) if idx < len(p0) else np.array([0.0, 0.0])
+            c = {name: np.array(p0[idx]) if idx < len(p0) else np.array([0.0, 0.0])
+                 for name, idx in KEYPOINT_MAP.items()}
 
             angles = {}
             for side in ("esq", "dir"):
-                o, coto, punho = f"ombro_{side}", f"cotovelo_{side}", f"punho_{side}"
-                q, joelho, torn = f"quadril_{side}", f"joelho_{side}", f"tornozelo_{side}"
-
-                if all(idx < len(p0) for idx in (KEYPOINT_MAP[o], KEYPOINT_MAP[coto], KEYPOINT_MAP[punho])):
-                    angles[f"cotovelo_{side}"] = safe_angle(c[o], c[coto], c[punho], f"cotovelo_{side}")
-                else:
-                    angles[f"cotovelo_{side}"] = 0.0
-
-                if all(idx < len(p0) for idx in (KEYPOINT_MAP[q], KEYPOINT_MAP[joelho], KEYPOINT_MAP[torn])):
-                    angles[f"joelho_{side}"] = safe_angle(c[q], c[joelho], c[torn], f"joelho_{side}")
-                else:
-                    angles[f"joelho_{side}"] = 0.0
-
-                if all(idx < len(p0) for idx in (KEYPOINT_MAP[o], KEYPOINT_MAP[q], KEYPOINT_MAP[joelho])):
-                    angles[f"quadril_{side}"] = safe_angle(c[o], c[q], c[joelho], f"quadril_{side}")
-                else:
-                    angles[f"quadril_{side}"] = 0.0
-
-                if all(idx < len(p0) for idx in (KEYPOINT_MAP[coto], KEYPOINT_MAP[o], KEYPOINT_MAP[q])):
-                    angles[f"ombro_{side}"] = safe_angle(c[coto], c[o], c[q], f"ombro_{side}")
-                else:
-                    angles[f"ombro_{side}"] = 0.0
+                angles[f"cotovelo_{side}"] = safe_angle(c[f"ombro_{side}"], c[f"cotovelo_{side}"], c[f"punho_{side}"],
+                                                        "")
+                angles[f"joelho_{side}"] = safe_angle(c[f"quadril_{side}"], c[f"joelho_{side}"], c[f"tornozelo_{side}"],
+                                                      "")
+                angles[f"quadril_{side}"] = safe_angle(c[f"ombro_{side}"], c[f"quadril_{side}"], c[f"joelho_{side}"],
+                                                       "")
+                angles[f"ombro_{side}"] = safe_angle(c[f"cotovelo_{side}"], c[f"ombro_{side}"], c[f"quadril_{side}"],
+                                                     "")
 
             machine.add_sample(angles, {k: (float(v[0]), float(v[1])) for k, v in c.items()}, frame_time)
 
-            # ---------- contador geral para "permanece certo" ----------
-            if not hasattr(self, "_ok_counter"):
-                self._ok_counter = 0
+            # ---------- verificação dinâmica ----------
+            if ex not in DYN_RANGE:
+                out_lines.append(f"=== {ex.upper()} (sem faixas) ===")
+            else:
+                phase = machine.phase
+                rng = DYN_RANGE[ex]["deep"] if phase in {"down", "bottom"} else DYN_RANGE[ex]["peak"]
+                out_lines.append(f"=== {ex.upper()} – fase {phase} ===")
 
-            # ------------ verificações por exercício ------------
-            if ex == "supino":
-                val_e, val_d = angles.get("cotovelo_esq", 0), angles.get("cotovelo_dir", 0)
-                out_lines.append("=== SUPINO ===")
-                # esquerdo
-                if val_e < 45 or val_e > 90:
-                    machine.errors.add("cotovelo_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 45, 90))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 45, 90))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # direito
-                if val_d < 45 or val_d > 90:
-                    machine.errors.add("cotovelo_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 45, 90))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 45, 90))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
+                ok_counter = 0
+                for joint, (min_a, max_a) in rng.items():
+                    angle = angles.get(joint, 0)
+                    if min_a <= angle <= max_a:
+                        out_lines.append(angle_message(joint, angle, min_a, max_a))
+                        ok_counter += 1
+                    else:
+                        machine.errors.add(joint)
+                        out_lines.append(angle_message(joint, angle, min_a, max_a))
 
-            elif ex == "agachamento":
-                val_e, val_d = angles.get("joelho_esq", 0), angles.get("joelho_dir", 0)
-                out_lines.append("=== AGACHAMENTO ===")
-                # esquerdo
-                if val_e < 90 or val_e > 120:
-                    machine.errors.add("joelho_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # direito
-                if val_d < 90 or val_d > 120:
-                    machine.errors.add("joelho_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "terra":
-                val_e, val_d = angles.get("quadril_esq", 0), angles.get("quadril_dir", 0)
-                out_lines.append("=== LEVANTAMENTO TERRA ===")
-                # esquerdo
-                if val_e < 100 or val_e > 120:
-                    machine.errors.add("quadril_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Esq", val_e, 100, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Esq", val_e, 100, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # direito
-                if val_d < 100 or val_d > 120:
-                    machine.errors.add("quadril_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Dir", val_d, 100, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Dir", val_d, 100, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "leg45":
-                out_lines.append("=== LEG PRESS 45° ===")
-                # joelhos
-                val_e, val_d = angles.get("joelho_esq", 0), angles.get("joelho_dir", 0)
-                if val_e < 90 or val_e > 120:
-                    machine.errors.add("joelho_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 90 or val_d > 120:
-                    machine.errors.add("joelho_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # quadril
-                val_e, val_d = angles.get("quadril_esq", 0), angles.get("quadril_dir", 0)
-                if val_e < 60 or val_e > 80:
-                    machine.errors.add("quadril_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Esq", val_e, 60, 80))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Esq", val_e, 60, 80))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 60 or val_d > 80:
-                    machine.errors.add("quadril_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Dir", val_d, 60, 80))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Dir", val_d, 60, 80))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "leg90":
-                out_lines.append("=== LEG PRESS HORIZONTAL (90°) ===")
-                # joelhos
-                val_e, val_d = angles.get("joelho_esq", 0), angles.get("joelho_dir", 0)
-                if val_e < 90 or val_e > 120:
-                    machine.errors.add("joelho_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 90 or val_d > 120:
-                    machine.errors.add("joelho_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # quadril
-                val_e, val_d = angles.get("quadril_esq", 0), angles.get("quadril_dir", 0)
-                if val_e < 60 or val_e > 100:
-                    machine.errors.add("quadril_esq")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Esq", val_e, 60, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Esq", val_e, 60, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 60 or val_d > 100:
-                    machine.errors.add("quadril_dir")
-                    self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Dir", val_d, 60, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Dir", val_d, 60, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "puxada_alta":
-                val_e, val_d = angles.get("ombro_esq", 0), angles.get("ombro_dir", 0)
-                out_lines.append("=== PUXADA ALTA FRONTAL ===")
-                # ombro
-                if val_e < 60 or val_e > 90:
-                    if "ombro_esq" not in machine.errors:
-                        machine.errors.add("ombro_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Ombro Esq", val_e, 60, 90))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Ombro Esq", val_e, 60, 90))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 60 or val_d > 90:
-                    if "ombro_dir" not in machine.errors:
-                        machine.errors.add("ombro_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Ombro Dir", val_d, 60, 90))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Ombro Dir", val_d, 60, 90))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # cotovelo
-                val_e, val_d = angles.get("cotovelo_esq", 0), angles.get("cotovelo_dir", 0)
-                if val_e < 80 or val_e > 100:
-                    if "cotovelo_esq" not in machine.errors:
-                        machine.errors.add("cotovelo_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 80, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 80, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 80 or val_d > 100:
-                    if "cotovelo_dir" not in machine.errors:
-                        machine.errors.add("cotovelo_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 80, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 80, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "cadeira_romana":
-                val_e, val_d = angles.get("quadril_esq", 0), angles.get("quadril_dir", 0)
-                avg_q = (val_e + val_d) / 2.0
-                out_lines.append("=== CADEIRA ROMANA (BACK EXTENSION) ===")
-                # esquerdo
-                if not ((120 <= val_e <= 140) or (160 <= val_e <= 180)):
-                    if "quadril_esq_fora_flex_ext" not in machine.errors:
-                        machine.errors.add("quadril_esq_fora_flex_ext")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Esq (flex/ext)", val_e, 120, 140))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Esq (flex/ext)", val_e, 120, 140))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # direito
-                if not ((120 <= val_d <= 140) or (160 <= val_d <= 180)):
-                    if "quadril_dir_fora_flex_ext" not in machine.errors:
-                        machine.errors.add("quadril_dir_fora_flex_ext")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Dir (flex/ext)", val_d, 120, 140))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Dir (flex/ext)", val_d, 120, 140))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # média
-                if avg_q > 185:
-                    if "hiperextensao" not in machine.errors:
-                        machine.errors.add("hiperextensao")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Médio (ext)", avg_q, 160, 180))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Médio (ext)", avg_q, 160, 180))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "hack":
-                val_e, val_d = angles.get("joelho_esq", 0), angles.get("joelho_dir", 0)
-                out_lines.append("=== HACK SQUAT ===")
-                # joelho
-                if val_e < 90 or val_e > 120:
-                    if "joelho_esq" not in machine.errors:
-                        machine.errors.add("joelho_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Esq", val_e, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 90 or val_d > 120:
-                    if "joelho_dir" not in machine.errors:
-                        machine.errors.add("joelho_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Joelho Dir", val_d, 90, 120))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # quadril
-                val_e, val_d = angles.get("quadril_esq", 0), angles.get("quadril_dir", 0)
-                if val_e < 60 or val_e > 100:
-                    if "quadril_esq" not in machine.errors:
-                        machine.errors.add("quadril_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Esq", val_e, 60, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Esq", val_e, 60, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 60 or val_d > 100:
-                    if "quadril_dir" not in machine.errors:
-                        machine.errors.add("quadril_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Quadril Dir", val_d, 60, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Quadril Dir", val_d, 60, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "remada_alta":
-                val_e, val_d = angles.get("ombro_esq", 0), angles.get("ombro_dir", 0)
-                out_lines.append("=== REMADA MÁQUINA ALTA (WIDE GRIP) ===")
-                # ombro
-                if val_e < 45 or val_e > 60:
-                    if "ombro_esq" not in machine.errors:
-                        machine.errors.add("ombro_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Ombro Esq", val_e, 45, 60))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Ombro Esq", val_e, 45, 60))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 45 or val_d > 60:
-                    if "ombro_dir" not in machine.errors:
-                        machine.errors.add("ombro_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Ombro Dir", val_d, 45, 60))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Ombro Dir", val_d, 45, 60))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # cotovelo
-                val_e, val_d = angles.get("cotovelo_esq", 0), angles.get("cotovelo_dir", 0)
-                if val_e < 60 or val_e > 100:
-                    if "cotovelo_esq" not in machine.errors:
-                        machine.errors.add("cotovelo_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 60, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 60, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 60 or val_d > 100:
-                    if "cotovelo_dir" not in machine.errors:
-                        machine.errors.add("cotovelo_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 60, 100))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 60, 100))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-
-            elif ex == "desenvolvimento de ombro":
-                # ombro
-                val_e, val_d = angles.get("ombro_esq", 0), angles.get("ombro_dir", 0)
-                out_lines.append("=== DESENVOLVIMENTO DE OMBRO ===")
-                if val_e < 0 or val_e > 160:
-                    if "ombro_esq" not in machine.errors:
-                        machine.errors.add("ombro_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Ombro Esq", val_e, 0, 160))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Ombro Esq", val_e, 0, 160))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 0 or val_d > 160:
-                    if "ombro_dir" not in machine.errors:
-                        machine.errors.add("ombro_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Ombro Dir", val_d, 0, 160))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Ombro Dir", val_d, 0, 160))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                # cotovelo
-                val_e, val_d = angles.get("cotovelo_esq", 0), angles.get("cotovelo_dir", 0)
-                if val_e < 60 or val_e > 180:
-                    if "cotovelo_esq" not in machine.errors:
-                        machine.errors.add("cotovelo_esq")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 60, 180))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Esq", val_e, 60, 180))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
-                if val_d < 60 or val_d > 180:
-                    if "cotovelo_dir" not in machine.errors:
-                        machine.errors.add("cotovelo_dir")
-                        self.led.blink_error()
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 60, 180))
-                    self._ok_counter = 0
-                else:
-                    out_lines.append(angle_message("Cotovelo Dir", val_d, 60, 180))
-                    self._ok_counter += 1
-                    if self._ok_counter % 30 == 1:
-                        self.led.blink_success(times=1, on_ms=40)
+                # ---------- LED ----------
+                if ok_counter == len(rng):  # todos OK
+                    self.led_red_timer.stop()
+                    self.led.green()
+                else:  # algum fora
+                    if not self.led_red_timer.isActive():
+                        self.led_red_timer.start()
+                        
 
             break  # primeira pessoa detectada
 
-            # ---------- texto ----------
-        if out_lines:
-            prev = self.text_output.toPlainText()
-            new_text = "\n".join(out_lines) + ("\n\n" + prev if prev else "")
-            self.text_output.setText(new_text)
-
-            # ---------- desenho ----------
-        annotated = frame.copy()
-        safe_draw(annotated, results)
-        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-        qt_img = QImage(
-            rgb.data, rgb.shape[1], rgb.shape[0], rgb.strides[0], QImage.Format.Format_RGB888
-        )
-        self.video_label.setPixmap(QPixmap.fromImage(qt_img))
-
-        # ---------- rep completa? ----------
-        if machine.is_complete:
-            self._complete_rep(ex)
-            # ---------- texto ----------
-
-        # ---------- acumula no topo (sem sobrescrever) ----------
+        # ---------- texto ----------
         if out_lines:
             header = f"\n{'-' * 50}\n"
             block = header + "\n".join(out_lines) + header
             prev = self.text_output.toPlainText()
-            self.text_output.setText(block + "\n" + prev)  # << acrescenta no TOPO
+            self.text_output.setText(block + "\n" + prev)
 
         # ---------- desenho ----------
-        annotated = frame.copy()
-        safe_draw(annotated, results)
-        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-        qt_img = QImage(
-            rgb.data, rgb.shape[1], rgb.shape[0], rgb.strides[0], QImage.Format.Format_RGB888
-        )
-        self.video_label.setPixmap(QPixmap.fromImage(qt_img))
+        try:
+            annotated = frame.copy()
+            safe_draw(annotated, results)
+            rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+
+            # garante que a memória é contígua antes de passar para o Qt
+            if not rgb.data.contiguous:
+                rgb = np.ascontiguousarray(rgb)
+
+            h, w, ch = rgb.shape
+            qt_img = QImage(rgb.data, w, h, ch * w, QImage.Format.Format_RGB888)
+            if qt_img.isNull():
+                print("[DRAW] QImage nula – ignorando frame")
+                return
+            self.video_label.setPixmap(QPixmap.fromImage(qt_img))
+        except Exception as e:
+            print(f"[DRAW] erro: {e}")
+            return
 
         # ---------- rep completa? ----------
         if machine.is_complete:
@@ -705,10 +366,6 @@ class MainWindow(QMainWindow):
 
         # ---------- salva no tracker ----------
         self.tracker.add_rep(ex, all_errors)
-
-        # ---------- LED: verde se perfeita ----------
-        if not all_errors:  # lista vazia → sem erro
-            self.led.blink_success()  # pisca verde 2×
 
         # ---------- log / texto ----------
         print(summary)

@@ -1,4 +1,8 @@
-import sys
+# main.py
+import faulthandler, traceback, sys
+faulthandler.enable()                       # crash → stdout
+sys.excepthook = lambda t, v, tb: traceback.print_exception(t, v, tb)
+
 from PyQt6.QtWidgets import QApplication
 from gui.main_window import MainWindow
 
